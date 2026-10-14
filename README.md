@@ -14,7 +14,7 @@ NUS RMI · FE5209 Financial Econometrics 小组项目
 | 反向杠杆 | TECS |
 | 波动率 | UVXY |
 | 防御 | BSV |
-| 新加坡资产 | ES3.SI（SPDR STI ETF），用 GARCH 波动率目标决定仓位（`10_sti_garch`） |
+| 新加坡资产 | ES3.SI（SPDR STI ETF）+ A35.SI（ABF Singapore Bond Index Fund）：GARCH 波动率目标决定 ES3 仓位，其余持有 A35（`10_sti_garch`） |
 
 三个研究版本：
 
@@ -23,7 +23,7 @@ NUS RMI · FE5209 Financial Econometrics 小组项目
 | 原策略（基线） | `01_baseline` | 单组参数，每天持有 1 只 ETF，无止损止盈 |
 | 止损止盈版 | `02`–`06` | 36 组止损/止盈参数，样本内按邻域平均 Sharpe 选参 |
 | **参数投票版（拟作为最终策略）** | `09_parameter_ensemble` | 7 个参数共 6336 组，每组每天投 1 票，得票比例 = 仓位 |
-| 新加坡部分 | `10_sti_garch` | GARCH 预测 ES3 明日波动，仓位 = min(目标波动 / 预测波动, 1)，其余为现金 |
+| 新加坡部分 | `10_sti_garch` | GARCH 预测 ES3 明日波动，ES3 仓位 = min(目标波动 / 预测波动, 1)，其余 1 − w 持有 A35 债券 |
 
 ## 2. 怎么运行
 
@@ -31,7 +31,7 @@ NUS RMI · FE5209 Financial Econometrics 小组项目
 2. 安装依赖：`python -m pip install -r requirements.txt`
 3. 打开 `pipeline/07_run_pipeline.ipynb`，点击 **Run All**，即可跑完 01–06 全部阶段。
 4. 参数投票版单独打开 `pipeline/09_parameter_ensemble.ipynb`，点击 Run All（6336 组，约需几十秒）。
-5. 新加坡部分打开 `pipeline/10_sti_garch.ipynb`：**第一次**把最后一格 `DOWNLOAD` 改成 `True` 运行（下载 ES3.SI 与 USD/SGD 汇率到 `data/raw/sti_daily.csv`），之后改回 `False`，再 Run All。
+5. 新加坡部分打开 `pipeline/10_sti_garch.ipynb`：**第一次**把最后一格 `DOWNLOAD` 改成 `True` 运行（下载 ES3.SI、A35.SI 与 USD/SGD 汇率到 `data/raw/sti_daily.csv`），之后改回 `False`，再 Run All。
 6. 更新数据：先 `pip install yfinance`，打开 `pipeline/08_data_update.ipynb`，把 `DOWNLOAD` 改成 `True` 后 Run All。新数据保存为 `data/raw/etf_daily_download.csv`，检查无误后再替换 `data/raw/etf_daily.csv`。
 
 成交假设：T 日收盘出信号、T+1 开盘成交；成本单边 5 bps（UVXY 10 bps）；空仓收益为 0。止损止盈用日线 High/Low 判断，跳空按开盘价成交，同日同时触及止损和止盈时按止损先发生处理。
@@ -46,7 +46,7 @@ Volumn-Rotation-Me/
 │
 ├── data/
 │   ├── raw/etf_daily.csv         美股 ETF 原始数据（yfinance，auto_adjust=False），不要手动改
-│   ├── raw/sti_daily.csv         【待下载】ES3.SI 日线 + USD/SGD 汇率（由 10 下载）
+│   ├── raw/sti_daily.csv         ES3.SI + A35.SI 日线 + USD/SGD 汇率（由 10 下载）
 │   └── submission/               【待生成】提交用：资产清单 + 每日收盘价
 │
 ├── pipeline/                     唯一的代码目录
@@ -60,7 +60,7 @@ Volumn-Rotation-Me/
 │   ├── 07_run_pipeline.ipynb     ★ 总入口：Run All 跑 01–06
 │   ├── 08_data_update.ipynb      下载 / 更新数据
 │   ├── 09_parameter_ensemble.ipynb  ★ 6336 组参数投票版
-│   └── 10_sti_garch.ipynb       ★ 新加坡资产 ES3.SI：GARCH 波动率目标
+│   └── 10_sti_garch.ipynb       ★ 新加坡部分：ES3 GARCH 波动率目标 + A35 债券
 │
 ├── results/                      【待生成】全部由 pipeline 自动输出
 │   ├── tables/                   指标表 CSV
@@ -123,7 +123,9 @@ equity + trades                      weights：DataFrame（日期 × ETF 权重�
     - 结论：BIC 选中 GJR-GARCH(1,1)-t。样本外波动预测显著优于 EWMA 和 20 日滚动（DM 检验），Mincer-Zarnowitz 不拒绝无偏。
     - 策略在 OOS 的 Sharpe 与买入持有无显著差异（0.91 对 0.88，bootstrap p≈0.84），但波动更低（12.1% 对 15.4%），最大回撤更浅（-23% 对 -37%）。
     - 数据注意：yfinance 缺 2026-10-13 一天；2012–2017 年零收益日占约 20%。
+  - ✅ 剩余资金由现金改为 **A35.SI 债券**；新增对照组「固定比例 ES3/A35」「GARCH + 现金」「买入持有 A35」，新增 `sti_bond_stats`（A35 波动、股债相关性）。
   - ⏳ 待办：
+    - **重新下载**（10 号最后一格 `DOWNLOAD=True`）以获得 A35 数据，再用真实数据跑出 A35 版本结果；
     - 确定 ES3 部分在总组合中的比例（暂定 10%）；
     - 把「美股轮动 + ES3」合成一个总组合并回测：两个市场交易日不同，缺失日按前值处理。
 - [ ] **提交用 CSV**（`data/submission/`）：

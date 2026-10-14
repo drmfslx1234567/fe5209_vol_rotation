@@ -1,0 +1,18 @@
+# Python / Jupyter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 临时下载文件（检查无误后再替换 data/raw/etf_daily.csv）
+data/raw/*_download.csv

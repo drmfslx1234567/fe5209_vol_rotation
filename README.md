@@ -14,55 +14,64 @@ NUS RMI · FE5209 Financial Econometrics 小组项目
 | 反向杠杆 | TECS |
 | 波动率 | UVXY |
 | 防御 | BSV |
-| 新加坡资产 | ES3.SI（SPDR STI ETF）+ A35.SI（ABF Singapore Bond Index Fund）：GARCH 波动率目标决定 ES3 仓位，其余持有 A35（`10_sti_garch`） |
+| 新加坡资产 | ES3.SI（SPDR STI ETF）+ A35.SI（ABF Singapore Bond Index Fund）：GARCH 波动率目标决定 ES3 仓位，其余持有 A35（`03_sti_garch`） |
 
-三个研究版本：
+最终策略 **final stra = 90% × V2（目标波动 30%）+ 10% × 新加坡部分**：
 
-| 版本 | 文件 | 说明 |
+| 组成 | 文件 | 说明 |
 |---|---|---|
-| 原策略（基线） | `01_baseline` | 单组参数，每天持有 1 只 ETF，无止损止盈 |
-| 止损止盈版 | `02`–`06` | 36 组止损/止盈参数，样本内按邻域平均 Sharpe 选参 |
-| **参数投票版（拟作为最终策略）** | `09_parameter_ensemble` | 7 个参数共 6336 组，每组每天投 1 票，得票比例 = 仓位 |
-| 新加坡部分 | `10_sti_garch` | GARCH 预测 ES3 明日波动，ES3 仓位 = min(目标波动 / 预测波动, 1)，其余 1 − w 持有 A35 债券 |
+| V0 参数投票 | `2_signals/02_parameter_ensemble` | 7 个参数共 6336 组，每组每天投 1 票，得票比例 = 仓位 |
+| V1 按波动率分配 | `2_signals/05_risk_allocation` | V0 的仓位 ÷ 各 ETF 过去 60 日波动率（α = 1）后归一 |
+| **V2 30%** | `2_signals/06_bsv_volatility_targeting` | V1 组合波动超过 30% 时缩小风险资产，多出的钱放 BSV |
+| **新加坡部分** | `2_signals/03_sti_garch` | GARCH 预测 ES3 明日波动，ES3 仓位 = min(目标波动 / 预测波动, 1)，其余持有 A35 |
 
 ## 2. 怎么运行
 
-1. 用 PyCharm 或 VS Code 打开整个文件夹，Python 3.10 以上。
-2. 安装依赖：`python -m pip install -r requirements.txt`
-3. 打开 `pipeline/07_run_pipeline.ipynb`，点击 **Run All**，即可跑完 01–06 全部阶段。
-4. 参数投票版单独打开 `pipeline/09_parameter_ensemble.ipynb`，点击 Run All（6336 组，约需几十秒）。
-5. 新加坡部分打开 `pipeline/10_sti_garch.ipynb`：**第一次**把最后一格 `DOWNLOAD` 改成 `True` 运行（下载 ES3.SI、A35.SI 与 USD/SGD 汇率到 `data/raw/sti_daily.csv`），之后改回 `False`，再 Run All。
-6. 更新数据：先 `pip install yfinance`，打开 `pipeline/08_data_update.ipynb`，把 `DOWNLOAD` 改成 `True` 后 Run All。新数据保存为 `data/raw/etf_daily_download.csv`，检查无误后再替换 `data/raw/etf_daily.csv`。
+1. 用 PyCharm 或 VS Code 打开整个文件夹，Python 3.10 以上；安装依赖：`python -m pip install -r requirements.txt`。
+2. **每个 notebook 都先 Restart Kernel（重启内核）再 Run All**，避免内核里残留旧代码。
+3. 更新数据后，按下面顺序依次运行（前一个的输出 CSV 是后一个的输入）：
+
+| 顺序 | 文件 | 输出 |
+|---|---|---|
+| 1 | `1_data/01_data_update` | 一次下载，**直接覆盖** `data/raw/etf_daily.csv` 和 `data/raw/sti_daily.csv`（旧文件各自备份为 `*_backup.csv`） |
+| 2 | `2_signals/03_sti_garch` | `sti_weights_history.csv`（新加坡每日仓位） |
+| 3 | `2_signals/02_parameter_ensemble` | `ensemble_weights_history.csv` |
+| 4 | `2_signals/05_risk_allocation` | `risk_adjusted_weights.csv` |
+| 5 | `2_signals/06_bsv_volatility_targeting` | `v2_weights_history.csv` |
+| 6 | `3_results/07_final_strategy` | final stra 回测（至 2026-09-30）：`final_*` 表、图、仓位 |
+| 7 | `3_results/08_live_oct_09` | final stra 实盘账本（10/1 ~ 10/20）：`final_live_*` |
+
+`2_signals/04_sti_sleeve` 是拼仓位的接口（90% 美股 + 10% 新加坡），由 07、08 调用，不用单独运行。
+
 
 成交假设：T 日收盘出信号、T+1 开盘成交；成本按 `00_engine` 的 `ONE_WAY_BPS` 逐标的扣（如 ES3 10 bps、A35 10 bps、TECL 35 bps），全项目统一；空仓收益为 0。止损止盈用日线 High/Low 判断，跳空按开盘价成交，同日同时触及止损和止盈时按止损先发生处理。
-
+时间划分（全项目统一）：IS 2012-08-01 ~ 2019-12-31；OOS 2020-01-01 ~ 2026-09-30（截止日为 `00_engine` 的 `OOS_END`）；实盘 2026-10-01 ~ 2026-10-20。方案和参数只依据 2026-09-30 及以前的结果确定。
 ## 3. 目录结构
 
 ```text
-Volumn-Rotation-Me/
+Volumn-Rotation/
 ├── README.md                     本文件
 ├── requirements.txt              依赖
 ├── .gitignore
 │
 ├── data/
 │   ├── raw/etf_daily.csv         美股 ETF 原始数据（yfinance，auto_adjust=False），不要手动改
-│   ├── raw/sti_daily.csv         ES3.SI + A35.SI 日线 + USD/SGD 汇率（由 10 下载）
+│   ├── raw/sti_daily.csv         ES3.SI + A35.SI 日线 + USD/SGD 汇率（由 1_data/01_data_update 下载）
 │   └── submission/               【待生成】提交用：资产清单 + 每日收盘价
 │
-├── pipeline/                     唯一的代码目录
-│   ├── 00_engine.ipynb           公共函数：读数据、复权、Wilder RSI、决策树、回测、指标、选参
-│   ├── 01_baseline.ipynb         原策略 vs 买入持有 SPY / TQQQ
-│   ├── 02_is_grid.ipynb          样本内（2012-08 ~ 2019-12）止损止盈网格
-│   ├── 03_oos2020_walkforward.ipynb  冻结参数的 OOS（2020 起）+ 逐年 walk-forward
-│   ├── 04_oos2024.ipynb          OOS 改为 2024 起（看过数据，并非盲测）
-│   ├── 05_live_0915.ipynb        模拟 2026-09-15 起实盘
-│   ├── 06_live_oct.ipynb         10 月实盘窗口
-│   ├── 07_run_pipeline.ipynb     ★ 总入口：Run All 跑 01–06
-│   ├── 08_data_update.ipynb      下载 / 更新数据
-│   ├── 09_parameter_ensemble.ipynb  ★ 6336 组参数投票版
-│   ├── 10_sti_garch.ipynb       ★ 新加坡部分：ES3 GARCH 波动率目标 + A35 债券（导出 sti_weights_history.csv）
-│   ├── 11_sti_sleeve.ipynb      新加坡插槽接口：读取 10 号仓位，与 09 合成 90% + 10%（ES3 + A35）
-│   └── 12_live_oct_09.ipynb     10 月实盘窗口成交账本（09 + 新加坡插槽）
+├── pipeline/
+│   ├── 00_engine.ipynb           公共引擎：读数据、复权、RSI、决策树、回测、指标；成本表 ONE_WAY_BPS、OOS_END
+│   ├── 1_data/                   ① 数据层
+│   │   └── 01_data_update.ipynb      一次下载，覆盖 data/raw/etf_daily.csv 和 sti_daily.csv
+│   ├── 2_signals/                ② 信号层：每天的目标仓位
+│   │   ├── 02_parameter_ensemble.ipynb       V0 6336 组参数投票
+│   │   ├── 03_sti_garch.ipynb                新加坡：ES3 GARCH 波动率目标 + A35
+│   │   ├── 04_sti_sleeve.ipynb               拼仓位接口：90% 美股 + 10% 新加坡
+│   │   ├── 05_risk_allocation.ipynb          V1：按波动率重新分配
+│   │   └── 06_bsv_volatility_targeting.ipynb V2：目标波动 30%，多出的钱放 BSV
+│   └── 3_results/                ③ 结果层：final stra
+│       ├── 07_final_strategy.ipynb           回测（2012-08 ~ 2026-09-30）
+│       └── 08_live_oct_09.ipynb              实盘账本（2026-10-01 ~ 10-20）
 │
 ├── results/                      【待生成】全部由 pipeline 自动输出
 │   ├── tables/                   指标表 CSV
@@ -120,15 +129,15 @@ equity + trades                      weights：DataFrame（日期 × ETF 权重�
 ### 🔴 必须完成
 
 - [ ] **加入新加坡资产**：老师要求至少一个新加坡资产。
-  - ✅ 已写好 `10_sti_garch.ipynb`：ES3.SI 的 GARCH 波动率目标策略（ARCH 检验 → 模型选择 → 残差诊断 → 预测评估 / DM 检验 → Mincer-Zarnowitz 回归 → 策略回测与 bootstrap）。已用替身数据测试通过。
+  - ✅ 已写好 `03_sti_garch.ipynb`：ES3.SI 的 GARCH 波动率目标策略（ARCH 检验 → 模型选择 → 残差诊断 → 预测评估 / DM 检验 → Mincer-Zarnowitz 回归 → 策略回测与 bootstrap）。已用替身数据测试通过。
   - ✅ 已用真实数据跑出结果（数据截至 2026-10-12），见 `results/tables/sti_*.csv`、`results/figures/sti_*.png`。
     - 结论：BIC 选中 GJR-GARCH(1,1)-t。样本外波动预测显著优于 EWMA 和 20 日滚动（DM 检验），Mincer-Zarnowitz 不拒绝无偏。
     - 策略在 OOS 的 Sharpe 与买入持有无显著差异（0.91 对 0.88，bootstrap p≈0.84），但波动更低（12.1% 对 15.4%），最大回撤更浅（-23% 对 -37%）。
     - 数据注意：yfinance 缺 2026-10-13 一天；2012–2017 年零收益日占约 20%。
-    - A35 早年成交清淡、有错误报价：10 号按规则清洗（单日 |r|>2.5% 且次日反向回去一半以上 → 用前一日价格），共 19 天，可用 `CLEAN_BOND=False` 关闭。
+    - A35 早年成交清淡、有错误报价：03 号按规则清洗（单日 |r|>2.5% 且次日反向回去一半以上 → 用前一日价格），共 19 天，可用 `CLEAN_BOND=False` 关闭。
   - ✅ 剩余资金由现金改为 **A35.SI 债券**；新增对照组「固定比例 ES3/A35」「GARCH + 现金」「买入持有 A35」，新增 `sti_bond_stats`（A35 波动、股债相关性）。
   - ⏳ 待办：
-    - **重新下载**（10 号最后一格 `DOWNLOAD=True`）以获得 A35 数据，再用真实数据跑出 A35 版本结果；
+    - **重新下载**（03 号最后一格 `DOWNLOAD=True`）以获得 A35 数据，再用真实数据跑出 A35 版本结果；
     - 确定 ES3 部分在总组合中的比例（暂定 10%）；
     - 把「美股轮动 + ES3」合成一个总组合并回测：两个市场交易日不同，缺失日按前值处理。
 - [ ] **提交用 CSV**（`data/submission/`）：
@@ -170,3 +179,7 @@ equity + trades                      weights：DataFrame（日期 × ETF 权重�
 - `09_parameter_ensemble_2` → `09_parameter_ensemble`。
 - `requirements.txt` 移到根目录。`README.txt` 和 `使用说明.md` 已归档，由本文件替代。
 - 策略、参数、回测规则、成本假设均未改动。已在新结构下重跑 07（01–06 全部阶段）和 09，结果与原仓库一致。
+- 2026-10-17：删除原策略研究用的 01–07 号（基线、止损止盈网格、旧实盘窗口、一键入口）；`pipeline/` 按 数据层 / 信号层 / 结果层 分成 `1_data`、`2_signals`、`3_results` 三个子文件夹，编号不变（下载合并为 `1_data/01_data_update`，原 08 号及 10 号的下载功能），各 notebook 从任一子文件夹启动都能找到项目根目录和其他 notebook。
+
+- 2026-10-17：信号层重新编号：09→`02_parameter_ensemble`、10→`03_sti_garch`、11→`04_sti_sleeve`、13→`05_risk_allocation`、14→`06_bsv_volatility_targeting`（结果层 12、15 不变）。
+- 2026-10-17：结果层重新编号：15_final_strategy → 07_final_strategy，12_live_oct_09 → 08_live_oct_09；各处引用同步修改。

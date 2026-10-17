@@ -16,3 +16,6 @@ desktop.ini
 
 # 临时下载文件（检查无误后再替换 data/raw/etf_daily.csv）
 data/raw/*_download.csv
+
+# 01_data_update 覆盖前自动生成的本地备份
+data/raw/*_backup.csv

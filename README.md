@@ -34,7 +34,7 @@ NUS RMI · FE5209 Financial Econometrics 小组项目
 5. 新加坡部分打开 `pipeline/10_sti_garch.ipynb`：**第一次**把最后一格 `DOWNLOAD` 改成 `True` 运行（下载 ES3.SI、A35.SI 与 USD/SGD 汇率到 `data/raw/sti_daily.csv`），之后改回 `False`，再 Run All。
 6. 更新数据：先 `pip install yfinance`，打开 `pipeline/08_data_update.ipynb`，把 `DOWNLOAD` 改成 `True` 后 Run All。新数据保存为 `data/raw/etf_daily_download.csv`，检查无误后再替换 `data/raw/etf_daily.csv`。
 
-成交假设：T 日收盘出信号、T+1 开盘成交；成本按 `00_engine` 的 `ONE_WAY_BPS` 逐标的扣（如 ES3 18 bps、A35 15 bps、TECL 35 bps），全项目统一；空仓收益为 0。止损止盈用日线 High/Low 判断，跳空按开盘价成交，同日同时触及止损和止盈时按止损先发生处理。
+成交假设：T 日收盘出信号、T+1 开盘成交；成本按 `00_engine` 的 `ONE_WAY_BPS` 逐标的扣（如 ES3 10 bps、A35 10 bps、TECL 35 bps），全项目统一；空仓收益为 0。止损止盈用日线 High/Low 判断，跳空按开盘价成交，同日同时触及止损和止盈时按止损先发生处理。
 
 ## 3. 目录结构
 
